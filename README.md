@@ -4,7 +4,7 @@ desktop-entry
 <a href='https://github.com/mrf345/desktop-entry/actions/workflows/ci.yml'>
   <img src='https://github.com/mrf345/desktop-entry/actions/workflows/ci.yml/badge.svg'>
 </a>
-<a href="https://pkg.go.dev/github.com/mrf345/desktop-entry/safelock">
+<a href="https://pkg.go.dev/github.com/mrf345/desktop-entry/">
   <img src="https://pkg.go.dev/badge/github.com/mrf345/desktop-entry/.svg" alt="Go Reference">
 </a>
 </h1>
