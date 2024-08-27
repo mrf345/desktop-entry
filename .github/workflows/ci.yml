@@ -1,0 +1,29 @@
+name: Build
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        go: [stable]
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '>=1.22'
+          cache-dependency-path: |
+             go.sum
+             internal/utils/go.sum
+      - name: Install dependencies
+        run: |
+          go get .
+      - name: Lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.59
+      - name: Test
+        run: go test -count=3 ./...
