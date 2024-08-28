@@ -8,9 +8,10 @@
 //
 // # How it works
 //
-// With the default settings shown in [desktopEntry.DesktopEntry] the method [desktopEntry.Create] will check
-// your [desktopEntry.DesktopEntry.AppsPath] for a .desktop file, that matches your [desktopEntry.DesktopEntry.Name],
-// if it can't find it, it'll create a new one. That will later on be updated it only when the binary path changes.
+// With the default settings shown in [desktopEntry.DesktopEntry] the method [desktopEntry.DesktopEntry.Create]
+// will check your [desktopEntry.DesktopEntry.AppsPath] for a .desktop file, that matches your
+// [desktopEntry.DesktopEntry.Name]-[desktopEntry.DesktopEntry.Version], if it can't find it, it'll create a new one.
+// That will later on be updated it only when the binary path changes.
 // See test [example].
 //
 // [example]: https://pkg.go.dev/github.com/mrf345/desktop-entry#example-DesktopEntry.Create
@@ -134,11 +135,15 @@ func (de *DesktopEntry) createIcon() (err error) {
 }
 
 func (de *DesktopEntry) getIconPath() string {
-	return filepath.Join(de.IconsPath, de.Name+".png")
+	return filepath.Join(de.IconsPath, de.getID()+".png")
+}
+
+func (de *DesktopEntry) getID() string {
+	return fmt.Sprintf("%s-%s", de.Name, de.Version)
 }
 
 func (de *DesktopEntry) createEntry() (changed bool, err error) {
-	var entryPath = filepath.Join(de.AppsPath, de.Name+".desktop")
+	var entryPath = filepath.Join(de.AppsPath, de.getID()+".desktop")
 	var entryData string
 	var doUpdate = de.UpdateIfChanged
 
