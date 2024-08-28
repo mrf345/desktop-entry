@@ -100,17 +100,19 @@ func getTestEntry() (
 	}
 
 	name := "testing"
+	version := "0.0.1"
+	id := fmt.Sprintf("%s-%s", name, version)
 	entry = desktopEntry.New(
 		name,
-		"0.0.1",
+		version,
 		[]byte{},
 	)
 	entry.RerunIfChanged = false
 	entry.AppsPath = tempDir
 	entry.IconsPath = tempDir
 
-	entryPath = filepath.Join(tempDir, name+".desktop")
-	iconPath = filepath.Join(tempDir, name+".png")
+	entryPath = filepath.Join(tempDir, id+".desktop")
+	iconPath = filepath.Join(tempDir, id+".png")
 
 	doesContentMatch = func() (match bool) {
 		rawContent, _ := os.ReadFile(entryPath)
