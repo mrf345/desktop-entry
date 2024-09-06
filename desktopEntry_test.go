@@ -125,7 +125,7 @@ func getTestEntry() (
 			strings.Contains(content, "Type="+entry.Type) &&
 			strings.Contains(content, "Name="+entry.Name) &&
 			strings.Contains(content, "Icon="+iconPath) &&
-			strings.Contains(content, "StartupWMClass="+entry.Name) &&
+			strings.Contains(content, "StartupWMClass="+filepath.Base(os.Args[0])) &&
 			strings.Contains(content, execLin))
 	}
 

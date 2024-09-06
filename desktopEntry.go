@@ -172,11 +172,15 @@ func (de *DesktopEntry) createEntry() (changed bool, err error) {
 
 func (de *DesktopEntry) shouldUpdate(entryPath string) (yes bool, err error) {
 	var entryFile *os.File
-	var pattern *regexp.Regexp
+	var execRegex, classRegex *regexp.Regexp
 	var existingData []byte
 	var execLine string
 
-	if pattern, err = regexp.Compile("Exec=sh -c '.*'"); err != nil {
+	if execRegex, err = regexp.Compile("Exec=sh -c '.*'"); err != nil {
+		return
+	}
+
+	if classRegex, err = regexp.Compile("StartupWMClass=.*"); err != nil {
 		return
 	}
 
@@ -193,7 +197,11 @@ func (de *DesktopEntry) shouldUpdate(entryPath string) (yes bool, err error) {
 		return
 	}
 
-	if match := pattern.Find(existingData); match == nil || string(match) != execLine {
+	if match := execRegex.Find(existingData); match == nil || string(match) != execLine {
+		yes = true
+	}
+
+	if match := classRegex.Find(existingData); match == nil || string(match) != de.getStartupClassLine() {
 		yes = true
 	}
 
@@ -206,6 +214,10 @@ func (de *DesktopEntry) getExecLine() (execPath string, err error) {
 	}
 
 	return fmt.Sprintf("Exec=sh -c '%s'", execPath), nil
+}
+
+func (de *DesktopEntry) getStartupClassLine() string {
+	return "StartupWMClass=" + filepath.Base(os.Args[0])
 }
 
 func (de *DesktopEntry) getEntryContent() (content string, err error) {
@@ -221,7 +233,7 @@ func (de *DesktopEntry) getEntryContent() (content string, err error) {
 		"Name=" + de.Name,
 		execLine,
 		"Icon=" + de.getIconPath(),
-		"StartupWMClass=" + de.Name,
+		de.getStartupClassLine(),
 	}
 
 	if de.Categories != "" {
