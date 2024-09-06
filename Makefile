@@ -1,5 +1,7 @@
+c ?= 2
+
 test:
-	go test -count=2 ./...
+	go test -count=$(c) ./...
 lint:
 	golangci-lint run
 docs:
