@@ -213,7 +213,7 @@ func (de *DesktopEntry) getExecLine() (execPath string, err error) {
 		return
 	}
 
-	return fmt.Sprintf("Exec=sh -c '%s'", execPath), nil
+	return fmt.Sprintf("Exec=sh -c '%s %%F'", execPath), nil
 }
 
 func (de *DesktopEntry) getStartupClassLine() string {
