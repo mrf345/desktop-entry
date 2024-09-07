@@ -119,7 +119,7 @@ func getTestEntry() (
 		content := string(rawContent)
 		lines := strings.Split(content, "\n")
 		execPath, _ := os.Executable()
-		execLin := fmt.Sprintf("Exec=sh -c '%s'", execPath)
+		execLin := fmt.Sprintf("Exec=sh -c '%s %%F'", execPath)
 
 		return (lines[0] == "[Desktop Entry]" &&
 			strings.Contains(content, "Type="+entry.Type) &&
