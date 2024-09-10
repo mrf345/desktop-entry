@@ -101,7 +101,7 @@ func getTestEntry() (
 
 	name := "testing"
 	version := "0.0.1"
-	id := fmt.Sprintf("%s-%s", name, version)
+	id := name
 	entry = desktopEntry.New(
 		name,
 		version,
