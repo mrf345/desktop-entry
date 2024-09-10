@@ -10,7 +10,7 @@
 //
 // With the default settings shown in [desktopEntry.DesktopEntry] the method [desktopEntry.DesktopEntry.Create]
 // will check your [desktopEntry.DesktopEntry.AppsPath] for a .desktop file, that matches your
-// [desktopEntry.DesktopEntry.Name]-[desktopEntry.DesktopEntry.Version], if it can't find it, it'll create a new one.
+// [desktopEntry.DesktopEntry.Name], if it can't find it, it'll create a new one.
 // That will later on be updated it only when the binary path changes.
 // See test [example].
 //
