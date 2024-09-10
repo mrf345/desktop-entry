@@ -18,6 +18,7 @@
 package desktopEntry
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -57,6 +58,16 @@ type DesktopEntry struct {
 	UpdateIfChanged bool
 	// Rerun the app if desktop entry has changed (default: true)
 	RerunIfChanged bool
+	// Mime type to associate the desktop entry with
+	MimeType MimeType
+}
+
+type MimeType struct {
+	Type        string
+	Path        string
+	Comment     string
+	GenericIcon string
+	Patterns    []string
 }
 
 // Create a new [desktopEntry.DesktopEntry] instance with the default options
@@ -67,7 +78,7 @@ func New(name, version string, icon []byte) *DesktopEntry {
 		Icon:            icon,
 		Type:            "Application",
 		Arch:            "x86_64",
-		Perm:            0776,
+		Perm:            0755,
 		AppsPath:        fmt.Sprintf("%s/.local/share/applications", os.Getenv("HOME")),
 		IconsPath:       fmt.Sprintf("%s/.icons", os.Getenv("HOME")),
 		OSs:             []string{"linux"},
@@ -82,8 +93,9 @@ func (de *DesktopEntry) Create() (err error) {
 
 	isDevBuild := strings.HasPrefix(os.Args[0], os.TempDir())
 	isSupportedOs := slices.Contains(de.OSs, runtime.GOOS)
+	shouldCreateMimeType, err := de.shouldCreateMimeType()
 
-	if isDevBuild || !isSupportedOs {
+	if isDevBuild || !isSupportedOs || err != nil {
 		return
 	}
 
@@ -102,15 +114,28 @@ func (de *DesktopEntry) Create() (err error) {
 		return
 	}
 
+	if shouldCreateMimeType {
+		if err = de.createMimeType(); err != nil {
+			err = fmt.Errorf("failed to create mime type file > %w", err)
+			return
+		}
+	}
+
 	if changed && de.RerunIfChanged {
-		err = de.restart()
+		err = restart()
 	}
 
 	return
 }
 
-func (de *DesktopEntry) createPaths() (err error) {
-	for _, path := range []string{de.AppsPath, de.IconsPath} {
+func (de DesktopEntry) createPaths() (err error) {
+	paths := []string{de.AppsPath, de.IconsPath}
+
+	if len(de.MimeType.Path) > 0 {
+		paths = append(paths, de.MimeType.Path)
+	}
+
+	for _, path := range paths {
 		if _, err = os.Stat(path); os.IsNotExist(err) {
 			if err = os.MkdirAll(path, de.Perm); err != nil {
 				return
@@ -124,7 +149,7 @@ func (de *DesktopEntry) createPaths() (err error) {
 	return
 }
 
-func (de *DesktopEntry) createIcon() (err error) {
+func (de DesktopEntry) createIcon() (err error) {
 	var iconPath = de.getIconPath()
 
 	if _, err = os.Stat(iconPath); !os.IsNotExist(err) {
@@ -134,15 +159,15 @@ func (de *DesktopEntry) createIcon() (err error) {
 	return os.WriteFile(iconPath, de.Icon, de.Perm)
 }
 
-func (de *DesktopEntry) getIconPath() string {
+func (de DesktopEntry) getIconPath() string {
 	return filepath.Join(de.IconsPath, de.getID()+".png")
 }
 
-func (de *DesktopEntry) getID() string {
-	return fmt.Sprintf("%s-%s", de.Name, de.Version)
+func (de DesktopEntry) getID() string {
+	return strings.ToLower(de.Name)
 }
 
-func (de *DesktopEntry) createEntry() (changed bool, err error) {
+func (de DesktopEntry) createEntry() (changed bool, err error) {
 	var entryPath = filepath.Join(de.AppsPath, de.getID()+".desktop")
 	var entryData string
 	var doUpdate = de.UpdateIfChanged
@@ -164,13 +189,16 @@ func (de *DesktopEntry) createEntry() (changed bool, err error) {
 			return
 		}
 
-		return true, os.WriteFile(entryPath, []byte(entryData), de.Perm)
+		changed = true
+		err = os.WriteFile(entryPath, []byte(entryData), de.Perm)
+		_ = exec.Command(fmt.Sprintf(`update-desktop-database "%s"`, de.AppsPath)).Run()
+		return
 	}
 
 	return
 }
 
-func (de *DesktopEntry) shouldUpdate(entryPath string) (yes bool, err error) {
+func (de DesktopEntry) shouldUpdate(entryPath string) (yes bool, err error) {
 	var entryFile *os.File
 	var execRegex, classRegex *regexp.Regexp
 	var existingData []byte
@@ -193,7 +221,7 @@ func (de *DesktopEntry) shouldUpdate(entryPath string) (yes bool, err error) {
 		return
 	}
 
-	if execLine, err = de.getExecLine(); err != nil {
+	if execLine, err = getExecLine(); err != nil {
 		return
 	}
 
@@ -201,29 +229,17 @@ func (de *DesktopEntry) shouldUpdate(entryPath string) (yes bool, err error) {
 		yes = true
 	}
 
-	if match := classRegex.Find(existingData); match == nil || string(match) != de.getStartupClassLine() {
+	if match := classRegex.Find(existingData); match == nil || string(match) != getStartupClassLine() {
 		yes = true
 	}
 
 	return
 }
 
-func (de *DesktopEntry) getExecLine() (execPath string, err error) {
-	if execPath, err = os.Executable(); err != nil {
-		return
-	}
-
-	return fmt.Sprintf("Exec=sh -c '%s %%F'", execPath), nil
-}
-
-func (de *DesktopEntry) getStartupClassLine() string {
-	return "StartupWMClass=" + filepath.Base(os.Args[0])
-}
-
-func (de *DesktopEntry) getEntryContent() (content string, err error) {
+func (de DesktopEntry) getEntryContent() (content string, err error) {
 	var execLine string
 
-	if execLine, err = de.getExecLine(); err != nil {
+	if execLine, err = getExecLine(); err != nil {
 		return
 	}
 
@@ -233,7 +249,7 @@ func (de *DesktopEntry) getEntryContent() (content string, err error) {
 		"Name=" + de.Name,
 		execLine,
 		"Icon=" + de.getIconPath(),
-		de.getStartupClassLine(),
+		getStartupClassLine(),
 	}
 
 	if de.Categories != "" {
@@ -244,26 +260,73 @@ func (de *DesktopEntry) getEntryContent() (content string, err error) {
 		lines = append(lines, "Comment="+de.Comment)
 	}
 
+	if len(de.MimeType.Type) > 0 {
+		lines = append(lines, "MimeType="+de.MimeType.Type)
+	}
+
 	return strings.Join(lines, "\n"), nil
 }
 
-func (de *DesktopEntry) restart() (err error) {
-	var cmd *exec.Cmd
+func (de DesktopEntry) shouldCreateMimeType() (yes bool, err error) {
+	var path string
 
-	if len(os.Args) > 1 {
-		cmd = exec.Command(os.Args[0], os.Args[1:]...)
-	} else {
-		cmd = exec.Command(os.Args[0])
-	}
-
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err = cmd.Run(); err != nil {
+	if len(de.MimeType.Type) == 0 || len(de.MimeType.Path) == 0 {
 		return
 	}
 
-	os.Exit(0)
+	if path, err = de.getMimeTypePath(); err != nil {
+		return
+	}
+
+	if _, err = os.Stat(path); err != nil && !os.IsNotExist(err) {
+		return
+	}
+
+	return true, nil
+}
+
+func (de DesktopEntry) getMimeTypePath() (string, error) {
+	typeChunks := strings.Split(de.MimeType.Type, "/")
+
+	if 1 >= len(typeChunks) {
+		return "", errors.New("invalid MimeType.Type")
+	}
+
+	return filepath.Join(de.MimeType.Path, "packages/"+typeChunks[1]+".xml"), nil
+}
+
+func (de DesktopEntry) createMimeType() (err error) {
+	var path string
+
+	lines := []string{
+		`<?xml version="1.0" encoding="utf-8"?>`,
+		`<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">`,
+		fmt.Sprintf(`  <mime-type type="%s">`, de.MimeType.Type),
+	}
+
+	for _, p := range de.MimeType.Patterns {
+		lines = append(lines, fmt.Sprintf(`    <glob pattern="%s"/>`, p))
+	}
+
+	if len(de.MimeType.Comment) > 0 {
+		lines = append(lines, fmt.Sprintf(`    <comment>%s</comment>`, de.MimeType.Comment))
+	}
+
+	if len(de.MimeType.GenericIcon) > 0 {
+		lines = append(lines, fmt.Sprintf(`    <generic-icon name="%s"/>`, de.MimeType.GenericIcon))
+	}
+
+	lines = append(lines, []string{"  </mime-type>", "</mime-info>"}...)
+
+	if path, err = de.getMimeTypePath(); err != nil {
+		return
+	}
+
+	if err = os.WriteFile(path, []byte(strings.Join(lines, "\n")), de.Perm); err != nil {
+		return
+	}
+
+	_ = exec.Command(fmt.Sprintf(`update-mime-database "%s"`, de.MimeType.Path)).Run()
+
 	return
 }
